@@ -14,6 +14,10 @@ mod inmem_kvstore;
 use kvservice::KVService;
 use crate::kvservice::KVServiceRequest;
 
+//TODO remove this
+
+//TODO rename project
+//TODO publish to github
 type Counter = i32;
 
 #[tokio::main]
@@ -21,6 +25,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = ([127, 0, 0, 1], 3000).into();
     let kv_service = KVService::new();
+
+    // TODO compose service out of layers:
+    // 1. Parse GET request
+    // 2. Request from cache
+    // 3. Request from store
+    // 2'. Update cache
+    //
+    // 1. Parse POST request
+    // 2. Update store
+    // 3. Update cache (can skip it for simplicity)
+
 
     let server = Server::bind(&addr)
         .serve(
