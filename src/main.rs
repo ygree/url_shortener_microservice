@@ -1,4 +1,4 @@
-mod inmem_kvstore;
+
 
 use hyper::service::Service;
 use hyper::{Body, Request, Response, Server};
@@ -8,17 +8,19 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
-use inmem_kvstore::InMemKVStore;
+mod kvservice;
+mod inmem_kvstore;
 
+use kvservice::KVService;
+use crate::kvservice::KVServiceRequest;
 
 type Counter = i32;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let kv_store = InMemKVStore::new();
 
     let addr = ([127, 0, 0, 1], 3000).into();
-    let kv_service = KVService { kv_store };
+    let kv_service = KVService::new();
 
     let server = Server::bind(&addr)
         .serve(
@@ -98,34 +100,3 @@ impl Service<Request<Body>> for Svc {
     }
 }
 
-#[derive(Clone)]
-struct KVService {
-    kv_store: InMemKVStore,
-}
-
-enum KVServiceRequest {
-    Put { key: String, value: String },
-    Get(String),
-}
-
-impl Service<KVServiceRequest> for KVService {
-    type Response = Option<String>;
-    type Error = ();
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: KVServiceRequest) -> Self::Future {
-        match req {
-            KVServiceRequest::Get(key) => {
-                let value = self.kv_store.get(key);
-                Box::pin(async { Ok(value) })
-            }
-            KVServiceRequest::Put {key, value} => {
-                Box::pin(async { Ok(None) })
-            }
-        }
-    }
-}
