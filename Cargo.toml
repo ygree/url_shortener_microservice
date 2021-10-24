@@ -8,3 +8,8 @@ edition = "2018"
 [dependencies]
 hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
+pretty_env_logger = "0.4"
+#futures-util = { version = "0.3", default-features = false }
+#pretty_env_logger = "0.4"
+
+[dev-dependencies]
