@@ -83,6 +83,9 @@ impl Service<Request<Body>> for Svc {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
+        // TODO handle POST request { url = <.full url.> } and return ( url = <.short url.> }
+        // TODO handle GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
+
         fn mk_response(s: String) -> Result<Response<Body>, hyper::Error> {
             Ok(Response::builder().body(Body::from(s)).unwrap())
         }
