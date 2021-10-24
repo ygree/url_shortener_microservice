@@ -1,5 +1,4 @@
-
-
+use std::convert::Infallible;
 use hyper::service::Service;
 use hyper::{Body, Request, Response, Server};
 
@@ -7,6 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
+use futures::future::BoxFuture;
 
 mod kvservice;
 mod inmem_kvstore;
@@ -36,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
+//TODO replace it with a makeservice_fn
 struct MakeSvc {
     counter: Arc<Mutex<Counter>>,
     kv_service: KVService,
@@ -58,15 +59,24 @@ impl<T> Service<T> for MakeSvc {
     }
 }
 
+#[derive(Clone)]
 struct Svc {
     counter: Arc<Mutex<Counter>>,
     kv_service: KVService,
 }
 
+impl Svc {
+    async fn get_value(&self, key: &str) -> Result<Option<String>, ()> {
+        let mut kvs = self.kv_service.clone();
+        kvs.call(KVServiceRequest::Get("test".to_string())).await
+    }
+}
+
 impl Service<Request<Body>> for Svc {
     type Response = Response<Body>;
     type Error = hyper::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    // type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>; // TODO how to avoid allocation here?
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>; // TODO how to avoid allocation here?
 
     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -77,26 +87,31 @@ impl Service<Request<Body>> for Svc {
             Ok(Response::builder().body(Body::from(s)).unwrap())
         }
 
-        let a = self.kv_service.call(KVServiceRequest::Get("test".to_string()));
+        let svc = self.clone();
 
-        let res = match req.uri().path() {
-            "/" => mk_response(format!("home! counter = {:?}", self.counter)),
-            "/posts" => mk_response(format!("posts, of course! counter = {:?}", self.counter)),
-            "/authors" => mk_response(format!(
-                "authors extraordinare! counter = {:?}",
-                self.counter
-            )),
-            // Return the 404 Not Found for other routes, and don't increment counter.
-            _ => return Box::pin(async { mk_response("oh no! not found".into()) }),
-        };
+        return Box::pin(async move {
+            let r = svc.get_value("test").await.unwrap();
+            Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
+        });
 
-        if req.uri().path() != "/favicon.ico" {
-            let mut c = self.counter.lock().unwrap();
-            *c += 1;
-
-        }
-
-        Box::pin(async { res })
+        // let res = match req.uri().path() {
+        //     "/" => mk_response(format!("home! counter = {:?}", self.counter)),
+        //     "/posts" => mk_response(format!("posts, of course! counter = {:?}", self.counter)),
+        //     "/authors" => mk_response(format!(
+        //         "authors extraordinare! counter = {:?}",
+        //         self.counter
+        //     )),
+        //     // Return the 404 Not Found for other routes, and don't increment counter.
+        //     _ => return Box::pin(async { mk_response("oh no! not found".into()) }),
+        // };
+        //
+        // if req.uri().path() != "/favicon.ico" {
+        //     let mut c = self.counter.lock().unwrap();
+        //     *c += 1;
+        //
+        // }
+        //
+        // Box::pin(async { res })
     }
 }
 

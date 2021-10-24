@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::task::Context;
+use futures::future::BoxFuture;
 use hyper::service::Service;
 use tokio::macros::support::Poll;
 
@@ -27,7 +28,8 @@ pub enum KVServiceRequest {
 impl Service<KVServiceRequest> for KVService {
     type Response = Option<String>;
     type Error = ();
-    type Future = Pin<Box<dyn Future<Output=Result<Self::Response, Self::Error>> + Send>>;
+    // type Future = Pin<Box<dyn Future<Output=Result<Self::Response, Self::Error>> + Send>>;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -40,6 +42,7 @@ impl Service<KVServiceRequest> for KVService {
                 Box::pin(async { Ok(value) })
             }
             KVServiceRequest::Put { key, value } => {
+                self.kv_store.put(key, value);
                 Box::pin(async { Ok(None) })
             }
         }
