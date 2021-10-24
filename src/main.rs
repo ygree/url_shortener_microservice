@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 use hyper::service::Service;
-use hyper::{Body, Request, Response, Server};
+use hyper::{Body, Method, Request, Response, Server, StatusCode};
 
 use std::future::Future;
 use std::pin::Pin;
@@ -97,35 +97,25 @@ impl Service<Request<Body>> for Svc {
         // TODO handle POST request { url = <.full url.> } and return ( url = <.short url.> }
         // TODO handle GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
 
-        fn mk_response(s: String) -> Result<Response<Body>, hyper::Error> {
-            Ok(Response::builder().body(Body::from(s)).unwrap())
+        let mut response = Response::new(Body::empty());
+
+        match (req.method(), req.uri().path()) {
+            (&Method::GET, "/") => {
+                *response.body_mut() = Body::from("Try POSTing data to /echo");
+            },
+            _ => {
+                *response.status_mut() = StatusCode::NOT_FOUND;
+            },
         }
 
         let svc = self.clone();
 
         return Box::pin(async move {
             let r = svc.get_value("test").await.unwrap();
-            Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
+            // Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
+            Ok(response)
         });
 
-        // let res = match req.uri().path() {
-        //     "/" => mk_response(format!("home! counter = {:?}", self.counter)),
-        //     "/posts" => mk_response(format!("posts, of course! counter = {:?}", self.counter)),
-        //     "/authors" => mk_response(format!(
-        //         "authors extraordinare! counter = {:?}",
-        //         self.counter
-        //     )),
-        //     // Return the 404 Not Found for other routes, and don't increment counter.
-        //     _ => return Box::pin(async { mk_response("oh no! not found".into()) }),
-        // };
-        //
-        // if req.uri().path() != "/favicon.ico" {
-        //     let mut c = self.counter.lock().unwrap();
-        //     *c += 1;
-        //
-        // }
-        //
-        // Box::pin(async { res })
     }
 }
 
