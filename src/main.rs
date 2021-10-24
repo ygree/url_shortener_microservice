@@ -31,10 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 2. Request from cache
     // 3. Request from store
     // 2'. Update cache
+    // 4. Serialize response (could be an error)
     //
     // 1. Parse POST request
     // 2. Update store
     // 3. Update cache (can skip it for simplicity)
+    // 4. Serialize response (could be an error)
 
 
     let server = Server::bind(&addr)
