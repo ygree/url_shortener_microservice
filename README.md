@@ -13,3 +13,5 @@ For reference implementation use tower source code, e.g. timeout and its Respons
 Pin is needed for creating self-referencing structures.
 pin_project.
 
+Use `impl Service<Request>` for different types of queries for the same service structure if `Response` types are not the same.
+

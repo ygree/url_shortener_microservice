@@ -81,9 +81,10 @@ struct Svc {
 }
 
 impl Svc {
-    async fn get_value(&self, key: &str) -> Result<Option<String>, ()> {
+    async fn get_value(&self, key: &str) -> Result<Option<String>, Infallible> {
         let mut kvs = self.kv_service.clone();
-        kvs.call(KVServiceRequest::Get("test".to_string())).await
+        kvs.call(kvservice::Get::new(key.to_string())).await
+        // kvs.call(KVServiceRequest::Get("test".to_string())).await
     }
 }
 
