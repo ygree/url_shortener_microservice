@@ -1,4 +1,4 @@
-mod kvstore;
+mod inmem_kvstore;
 
 use hyper::service::Service;
 use hyper::{Body, Request, Response, Server};
@@ -8,21 +8,23 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
-use kvstore::KVStore;
+use inmem_kvstore::InMemKVStore;
 
 
 type Counter = i32;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let kv_store = KVStore::new();
+    let kv_store = InMemKVStore::new();
 
     let addr = ([127, 0, 0, 1], 3000).into();
+    let kv_service = KVService { kv_store };
 
     let server = Server::bind(&addr)
         .serve(
             MakeSvc {
                 counter: Arc::new(Mutex::new(81818)),
+                kv_service: kv_service.clone()
             }
         );
 
@@ -34,6 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 struct MakeSvc {
     counter: Arc<Mutex<Counter>>,
+    kv_service: KVService,
 }
 
 impl<T> Service<T> for MakeSvc {
@@ -47,13 +50,15 @@ impl<T> Service<T> for MakeSvc {
 
     fn call(&mut self, _: T) -> Self::Future {
         let counter = self.counter.clone();
-        let fut = async move { Ok(Svc { counter }) };
+        let kv_service = self.kv_service.clone();
+        let fut = async move { Ok(Svc { counter, kv_service }) };
         Box::pin(fut)
     }
 }
 
 struct Svc {
     counter: Arc<Mutex<Counter>>,
+    kv_service: KVService,
 }
 
 impl Service<Request<Body>> for Svc {
@@ -69,6 +74,8 @@ impl Service<Request<Body>> for Svc {
         fn mk_response(s: String) -> Result<Response<Body>, hyper::Error> {
             Ok(Response::builder().body(Body::from(s)).unwrap())
         }
+
+        let a = self.kv_service.call(KVServiceRequest::Get("test".to_string()));
 
         let res = match req.uri().path() {
             "/" => mk_response(format!("home! counter = {:?}", self.counter)),
@@ -91,8 +98,9 @@ impl Service<Request<Body>> for Svc {
     }
 }
 
+#[derive(Clone)]
 struct KVService {
-    kv_store: KVStore,
+    kv_store: InMemKVStore,
 }
 
 enum KVServiceRequest {

@@ -2,13 +2,14 @@ use std::collections::HashMap;
 
 use std::sync::{Arc, Mutex};
 
-pub struct KVStore {
+#[derive(Clone)]
+pub struct InMemKVStore {
     hashmap: Arc<Mutex<HashMap<String, String>>>,
 }
 
-impl KVStore {
-    pub fn new() -> KVStore {
-        KVStore {
+impl InMemKVStore {
+    pub fn new() -> InMemKVStore {
+        InMemKVStore {
             hashmap: Arc::new(Mutex::new(HashMap::new()))
         }
     }
