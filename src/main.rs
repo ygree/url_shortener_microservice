@@ -13,8 +13,6 @@ mod inmem_kvstore;
 
 use kvservice::KVService;
 
-//TODO remove this
-
 //TODO rename project
 //TODO publish to github
 type Counter = i32;
@@ -41,7 +39,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let server = Server::bind(&addr)
         .serve(
             MakeSvc {
-                counter: Arc::new(Mutex::new(81818)),
                 kv_service: kv_service.clone()
             }
         );
@@ -54,7 +51,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 //TODO replace it with a makeservice_fn
 struct MakeSvc {
-    counter: Arc<Mutex<Counter>>,
     kv_service: KVService,
 }
 
@@ -68,16 +64,14 @@ impl<T> Service<T> for MakeSvc {
     }
 
     fn call(&mut self, _: T) -> Self::Future {
-        let counter = self.counter.clone();
         let kv_service = self.kv_service.clone();
-        let fut = async move { Ok(Svc { counter, kv_service }) };
+        let fut = async move { Ok(Svc { kv_service }) };
         Box::pin(fut)
     }
 }
 
 #[derive(Clone)]
 struct Svc {
-    counter: Arc<Mutex<Counter>>,
     kv_service: KVService,
 }
 
