@@ -1,17 +1,31 @@
+mod kvstore;
+
 use hyper::service::Service;
 use hyper::{Body, Request, Response, Server};
 
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
+
+use kvstore::KVStore;
+
 
 type Counter = i32;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let kv_store = KVStore::new();
+
     let addr = ([127, 0, 0, 1], 3000).into();
 
-    let server = Server::bind(&addr).serve(MakeSvc { counter: 81818 });
+    let server = Server::bind(&addr)
+        .serve(
+            MakeSvc {
+                counter: Arc::new(Mutex::new(81818)),
+            }
+        );
+
     println!("Listening on http://{}", addr);
 
     server.await?;
@@ -19,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 struct MakeSvc {
-    counter: Counter,
+    counter: Arc<Mutex<Counter>>,
 }
 
 impl<T> Service<T> for MakeSvc {
@@ -39,7 +53,7 @@ impl<T> Service<T> for MakeSvc {
 }
 
 struct Svc {
-    counter: Counter,
+    counter: Arc<Mutex<Counter>>,
 }
 
 impl Service<Request<Body>> for Svc {
@@ -68,28 +82,42 @@ impl Service<Request<Body>> for Svc {
         };
 
         if req.uri().path() != "/favicon.ico" {
-            self.counter += 1;
+            let mut c = self.counter.lock().unwrap();
+            *c += 1;
+
         }
 
         Box::pin(async { res })
     }
 }
 
-// struct KVStore {
-//
-// }
-//
-// impl Service<Request<Body>> for KVStore {
-//     type Response = Response<Body>;
-//     type Error = hyper::Error;
-//     type Future = Pin<Box<dyn Future<Output=Result<Self::Response, Self::Error>> + Send>>;
-//
-//     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
-//         Poll::Ready(Ok(()))
-//     }
-//
-//     fn call(&mut self, req: Request<Body>) -> Self::Future {
-//         let fut = async move { Ok("".into()) };
-//         Box::pin(fut)
-//     }
-// }
+struct KVService {
+    kv_store: KVStore,
+}
+
+enum KVServiceRequest {
+    Put { key: String, value: String },
+    Get(String),
+}
+
+impl Service<KVServiceRequest> for KVService {
+    type Response = Option<String>;
+    type Error = ();
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: KVServiceRequest) -> Self::Future {
+        match req {
+            KVServiceRequest::Get(key) => {
+                let value = self.kv_store.get(key);
+                Box::pin(async { Ok(value) })
+            }
+            KVServiceRequest::Put {key, value} => {
+                Box::pin(async { Ok(None) })
+            }
+        }
+    }
+}
