@@ -12,7 +12,6 @@ mod kvservice;
 mod inmem_kvstore;
 
 use kvservice::KVService;
-use crate::kvservice::KVServiceRequest;
 
 //TODO remove this
 
