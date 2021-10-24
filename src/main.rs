@@ -1,53 +1,95 @@
+use hyper::service::Service;
+use hyper::{Body, Request, Response, Server};
 
-#![deny(warnings)]
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
-
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Error, Response, Server};
+type Counter = i32;
 
 #[tokio::main]
-async fn main() {
-    pretty_env_logger::init();
-
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr = ([127, 0, 0, 1], 3000).into();
 
-    // For the most basic of state, we just share a counter, that increments
-    // with each request, and we send its value back in the response.
-    let counter = Arc::new(AtomicUsize::new(0));
-
-    // The closure inside `make_service_fn` is run for each connection,
-    // creating a 'service' to handle requests for that specific connection.
-    let make_service = make_service_fn(move |_| {
-        // While the state was moved into the make_service closure,
-        // we need to clone it here because this closure is called
-        // once for every connection.
-        //
-        // Each connection could send multiple requests, so
-        // the `Service` needs a clone to handle later requests.
-        let counter = counter.clone();
-
-        async move {
-            // This is the `Service` that will handle the connection.
-            // `service_fn` is a helper to convert a function that
-            // returns a Response into a `Service`.
-            Ok::<_, Error>(service_fn(move |_req| {
-                // Get the current count, and also increment by 1, in a single
-                // atomic operation.
-                let count = counter.fetch_add(1, Ordering::AcqRel);
-                async move { Ok::<_, Error>(Response::new(Body::from(format!("Request #{}", count)))) }
-            }))
-        }
-    });
-
-    let server = Server::bind(&addr).serve(make_service);
-
+    let server = Server::bind(&addr).serve(MakeSvc { counter: 81818 });
     println!("Listening on http://{}", addr);
 
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+    server.await?;
+    Ok(())
+}
+
+struct MakeSvc {
+    counter: Counter,
+}
+
+impl<T> Service<T> for MakeSvc {
+    type Response = Svc;
+    type Error = hyper::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, _: T) -> Self::Future {
+        let counter = self.counter.clone();
+        let fut = async move { Ok(Svc { counter }) };
+        Box::pin(fut)
     }
 }
+
+struct Svc {
+    counter: Counter,
+}
+
+impl Service<Request<Body>> for Svc {
+    type Response = Response<Body>;
+    type Error = hyper::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request<Body>) -> Self::Future {
+        fn mk_response(s: String) -> Result<Response<Body>, hyper::Error> {
+            Ok(Response::builder().body(Body::from(s)).unwrap())
+        }
+
+        let res = match req.uri().path() {
+            "/" => mk_response(format!("home! counter = {:?}", self.counter)),
+            "/posts" => mk_response(format!("posts, of course! counter = {:?}", self.counter)),
+            "/authors" => mk_response(format!(
+                "authors extraordinare! counter = {:?}",
+                self.counter
+            )),
+            // Return the 404 Not Found for other routes, and don't increment counter.
+            _ => return Box::pin(async { mk_response("oh no! not found".into()) }),
+        };
+
+        if req.uri().path() != "/favicon.ico" {
+            self.counter += 1;
+        }
+
+        Box::pin(async { res })
+    }
+}
+
+// struct KVStore {
+//
+// }
+//
+// impl Service<Request<Body>> for KVStore {
+//     type Response = Response<Body>;
+//     type Error = hyper::Error;
+//     type Future = Pin<Box<dyn Future<Output=Result<Self::Response, Self::Error>> + Send>>;
+//
+//     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+//         Poll::Ready(Ok(()))
+//     }
+//
+//     fn call(&mut self, req: Request<Body>) -> Self::Future {
+//         let fut = async move { Ok("".into()) };
+//         Box::pin(fut)
+//     }
+// }
