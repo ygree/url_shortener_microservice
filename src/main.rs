@@ -2,8 +2,10 @@ use hyper::service::Service;
 use hyper::Server;
 
 use std::future::Future;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use hyper::server::conn::AddrIncoming;
 use log::{info, error};
 
 mod kvservice;
@@ -20,26 +22,29 @@ async fn main() {
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
+    info!("Listening on http://{}", addr);
+
+    let graceful = start_server(&addr).await
+        .with_graceful_shutdown(shutdown_signal());
+
+    if let Err(e) = graceful.await {
+        error!("server error: {}", e);
+    }
+}
+
+async fn start_server(addr: &SocketAddr) -> Server<AddrIncoming, MakeSvc> {
     // KV-store mock impl
     let kv_service = KVService::new();
     // unique id gen mock impl
     let unique_id_gen = UniqueIdGen::new();
 
-    let server = Server::bind(&addr)
+    Server::bind(addr)
         .serve(
             MakeSvc {
                 kv_service,
                 unique_id_gen
             }
-        );
-
-    info!("Listening on http://{}", addr);
-
-    let graceful = server.with_graceful_shutdown(shutdown_signal());
-
-    if let Err(e) = graceful.await {
-        error!("server error: {}", e);
-    }
+        )
 }
 
 async fn shutdown_signal() {
@@ -70,3 +75,55 @@ impl<T> Service<T> for MakeSvc {
         Box::pin(fut)
     }
 }
+
+// #[tokio::test]
+// async fn test_service() {
+//     use hyper::Client;
+//
+//     let port = 3000;
+//     let addr = ([127, 0, 0, 1], port).into();
+//
+//     // let server = start_server(&addr).await;
+//     let handle = tokio::spawn(async move {
+//         start_server(&addr).await;
+//     });
+//
+//     handle.await;
+//
+//     thread::sleep(Duration::from_millis(4000));
+//
+//     // println!("test {}", server.local_addr().port());
+//
+//     let client = Client::new();
+//
+//     let uri: Uri = format!("localhost:{}", port).parse().unwrap();
+//
+//     println!("Request: {}", uri);
+//
+//     let resp = client.get(uri).await.unwrap();
+//     // assert_eq!(resp.status(), 200);
+//     // println!("Response: {}", resp.status());
+//
+//     // spawn()
+//     // main().await;
+//     // setup_wiremock().await;
+//     // let r = router(http::Client::new(), init_db().await);
+//     // let resp = request()
+//     //     .path("/todo")
+//     //     .method("POST")
+//     //     .body("")
+//     //     .reply(&r)
+//     //     .await;
+//     // assert_eq!(resp.status(), 200);
+//     // assert_eq!(
+//     //     resp.body(),
+//     //     r#"{"id":1,"name":"wiremock cat fact","checked":false}"#
+//     // );
+//     //
+//     // let resp = request().path("/todo").reply(&r).await;
+//     // assert_eq!(resp.status(), 200);
+//     // assert_eq!(
+//     //     resp.body(),
+//     //     r#"[{"id":1,"name":"wiremock cat fact","checked":false}]"#
+//     // );
+// }
