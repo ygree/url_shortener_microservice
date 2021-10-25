@@ -43,14 +43,11 @@ impl Service<Request<Body>> for UrlShortener {
         let mut response = Response::new(Body::empty());
 
         match (req.method(), req.uri().path().to_string()) {
-            (&Method::POST, url) => { // PUT? does put has a return value?
-                // TODO get url from the body
-
-                // TODO validate url?
-
+            (&Method::POST, url) => {
                 // TODO add caching if needed
-                // TODO look up in cache and return if exists
-                // TODO save in cache in the end
+                //  look up in cache and return if exists
+                //  save in cache in the end
+                //  could be implemented as a separate service
 
                 let mut kv_service = self.kv_service.clone();
                 let mut unique_id_gen = self.unique_id_gen.clone();

@@ -19,7 +19,6 @@ use crate::uniqueid::{GetUniqueId, UniqueId, UniqueIdGen};
 use crate::urlshortener::UrlShortener;
 
 //TODO add logging
-//TODO rename project
 //TODO publish to github
 
 #[tokio::main]
@@ -30,25 +29,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // KV-store mock impl
     let kv_service = KVService::new();
     // unique id gen mock impl
-    let mut unique_id_gen = UniqueIdGen::new();
-
-    // TODO compose service out of layers:
-    // 1. Parse GET request
-    // 2. Request from cache
-    // 3. Request from store
-    // 2'. Update cache
-    // 4. Serialize response (could be an error)
-    //
-    // 1. Parse POST request
-    // 2. Update store
-    // 3. Update cache (can skip it for simplicity)
-    // 4. Serialize response (could be an error)
-
+    let unique_id_gen = UniqueIdGen::new();
 
     let server = Server::bind(&addr)
         .serve(
             MakeSvc {
-                kv_service: kv_service.clone(),
+                kv_service,
                 unique_id_gen
             }
         );
@@ -59,7 +45,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-//TODO replace it with a makeservice_fn
 struct MakeSvc {
     kv_service: KVService,
     unique_id_gen: UniqueIdGen,
