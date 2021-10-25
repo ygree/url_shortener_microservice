@@ -49,6 +49,9 @@ impl Service<Request<Body>> for UrlShortener {
                 //  save in cache in the end
                 //  could be implemented as a separate service
 
+                // TODO internal service logic excluding Http part could be extracted into a separate service.
+                //  It will simplify process of adding a caching service around it.
+
                 let mut kv_service = self.kv_service.clone();
                 let mut unique_id_gen = self.unique_id_gen.clone();
                 let hash_ids = self.hash_ids.clone();

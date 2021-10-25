@@ -14,8 +14,6 @@ use kvservice::KVService;
 use urlshortener::UrlShortener;
 use uniqueid::UniqueIdGen;
 
-//TODO publish to github
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     env_logger::init();
