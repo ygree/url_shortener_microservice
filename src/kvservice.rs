@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::future::{Future, Ready};
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::task::Context;
 use futures::future::BoxFuture;
 use hyper::service::Service;
