@@ -7,28 +7,28 @@ use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 use futures::future::BoxFuture;
+use hash_ids::HashIds;
 
 mod kvservice;
 mod inmem_kvstore;
 mod uniqueid;
 
 use kvservice::KVService;
+use crate::kvservice::{GetByKey};
 use crate::uniqueid::UniqueIdGen;
 
 //TODO rename project
 //TODO publish to github
-
-static UNIQUE_ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = ([127, 0, 0, 1], 3000).into();
     let kv_service = KVService::new();
-    let unique_id_gen = UniqueIdGen::new(&UNIQUE_ID_COUNTER);
+    let mut unique_id_gen = UniqueIdGen::new();
 
     // TODO compose service out of layers:
     // 1. Parse GET request
@@ -75,7 +75,10 @@ impl<T> Service<T> for MakeSvc {
     fn call(&mut self, _: T) -> Self::Future {
         let kv_service = self.kv_service.clone();
         let unique_id_gen = self.unique_id_gen.clone();
-        let fut = async move { Ok(Svc { kv_service, unique_id_gen }) };
+        let hash_ids = HashIds::builder()
+            .with_salt("Arbitrary string")
+            .finish();
+        let fut = async move { Ok(Svc { kv_service, unique_id_gen, hash_ids }) };
         Box::pin(fut)
     }
 }
@@ -84,12 +87,13 @@ impl<T> Service<T> for MakeSvc {
 struct Svc {
     kv_service: KVService,
     unique_id_gen: UniqueIdGen,
+    hash_ids: HashIds,
 }
 
 impl Svc {
     async fn get_value(&self, key: &str) -> Result<Option<String>, Infallible> {
         let mut kvs = self.kv_service.clone();
-        kvs.call(kvservice::Get::new(key.to_string())).await
+        kvs.call(kvservice::GetByKey(key.to_string())).await
         // kvs.call(KVServiceRequest::Get("test".to_string())).await
     }
 }
@@ -108,43 +112,97 @@ impl Service<Request<Body>> for Svc {
         // TODO handle POST request { url = <.full url.> } and return ( url = <.short url.> }
         // TODO handle GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
 
+        // let (method, path) = (req.method().clone(), req.uri().path().clone());
+        let path = req.uri().path().to_string();
         let mut response = Response::new(Body::empty());
 
-        match (req.method(), req.uri().path()) {
-            (&Method::POST, url) => {
+        // match (req.method(), req.uri().path()) {
+        match (req.method(), path) {
+            (&Method::POST, url) => { // PUT? does put has a return value?
                 // TODO validate url?
-                // TODO check if url is already shortened?
 
-                // we still need a key-value store to be able find already existing url
+                // TODO look up in cache and return if exists
 
-                // TODO calc hash
-                // TODO check if url already exists
+                // look up KV by `url` and get a short url and send it back
+                // let mut kv_service = self.kv_service.clone();
+                // let found_short_url = kv_service.call(KVService::Get(url)).await;
+                // if let Some(fsu) = found_short_url {
+                // } else {
+                //     // generate a new unique id, if short url not found
+                //     let mut unique_id_gen = self.unique_id_gen.clone();
+                //     let unique_id = unique_id_gen.call(()).await.unwrap();
+                //     let mut hash_ids = self.hash_ids.clone();
+                //     let mut ids = Vec::new();
+                //     ids.push(unique_id);
+                //     let mut hash = hash_ids.encode(**ids);
                 //
-                // TODO generate hash and save url
-                // TODO return generated url
+                //     // we could potentially replace long_url -> short_url pair, but it's not an issue
+                //     // old url is stored as short_url -> long_url and will still work,
+                //     // service will advertise a last written short_url, all short_urls will still work
+                //     kv_service.call(KVService::Put{ key: url, value: hash }).await;
+                //     kv_service.call(KVService::Put{ key: hash.clone(), value: url }).await;
+                //
+                // }
+                // TODO save in cache
+                // TODO return { orig_url, short_url }
 
-                let mut s = DefaultHasher::new();
-                url.hash(&mut s);
-                let hashcode = s.finish();
 
-                *response.body_mut() = Body::from(format!("{}", hashcode));
+                let mut kv_service = self.kv_service.clone();
+                let mut unique_id_gen = self.unique_id_gen.clone();
+                let mut hash_ids = self.hash_ids.clone();
+
+                *response.body_mut() = Body::from(url.clone());
+                Box::pin(async move {
+                    let found_short_or_orig_url = kv_service.call(GetByKey(url)).await.unwrap();
+                    if let Some(found_url) = found_short_or_orig_url {
+                        Ok(Response::builder().body(Body::from(found_url)).unwrap())
+                    } else {
+                        // generate a new unique id, if short url not found
+                        let unique_id = unique_id_gen.call(()).await.unwrap();
+                        println!("{}", unique_id);
+                        let new_short_url = hash_ids.encode(&vec![unique_id as u64]);
+
+                        //TODO save a new hash pairs
+
+                        Ok(Response::builder().body(Body::from(new_short_url)).unwrap())
+                    }
+
+                    // let r = svc.get_value("test").await.unwrap();
+                    // Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
+                })
             },
             (&Method::GET, url) => {
-                // TODO look up short/full url by `url`
-                *response.status_mut() = StatusCode::NOT_FOUND;
+                let mut kv_service = self.kv_service.clone();
+
+                // look up short/original url by `url`
+                Box::pin(async move {
+                    let found_short_or_orig_url = kv_service.call(GetByKey(url)).await.unwrap();
+                    println!("{}", found_short_or_orig_url.clone().unwrap_or("Not found!".to_string()));
+                    if let Some(short_or_orig_url) = found_short_or_orig_url {
+                        Ok(Response::builder().body(Body::from(short_or_orig_url)).unwrap())
+                    } else {
+                        *response.status_mut() = StatusCode::NOT_FOUND;
+                        Ok(response)
+                    }
+                })
             },
             _ => {
                 *response.status_mut() = StatusCode::NOT_FOUND;
+                Box::pin(async move {
+                    // let r = svc.get_value("test").await.unwrap();
+                    // Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
+                    Ok(response)
+                })
             },
         }
 
-        let svc = self.clone();
+        // let svc = self.clone();
 
-        return Box::pin(async move {
-            let r = svc.get_value("test").await.unwrap();
-            // Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
-            Ok(response)
-        });
+        // return Box::pin(async move {
+        //     // let r = svc.get_value("test").await.unwrap();
+        //     // Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
+        //     Ok(response)
+        // });
 
     }
 }

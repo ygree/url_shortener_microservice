@@ -16,7 +16,8 @@ impl InMemKVStore {
 
     pub fn put(&mut self, key: String, value: String) {
         let mut hm = self.hashmap.lock().unwrap();
-        hm.insert(key, value);
+        let old_value = hm.insert(key, value);
+
     }
 
     pub fn get(&self, key: String) -> Option<String> {

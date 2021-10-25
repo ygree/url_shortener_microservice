@@ -48,17 +48,9 @@ impl Service<Put> for KVService {
 }
 
 
-pub struct Get {
-    key: String,
-}
+pub struct GetByKey(pub String);
 
-impl Get {
-    pub fn new(key: String) -> Get {
-        Get { key }
-    }
-}
-
-impl Service<Get> for KVService {
+impl Service<GetByKey> for KVService {
     type Response = Option<String>;
     type Error = Infallible;
     // type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
@@ -68,9 +60,9 @@ impl Service<Get> for KVService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Get) -> Self::Future {
+    fn call(&mut self, req: GetByKey) -> Self::Future {
         // mock call to a KV-store
-        let value = self.kv_store.get(req.key);
+        let value = self.kv_store.get(req.0);
         core::future::ready(Ok(value))
     }
 }

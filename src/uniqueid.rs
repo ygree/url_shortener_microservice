@@ -1,21 +1,23 @@
 use std::convert::Infallible;
 use std::future::{Future, Ready};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Context;
 use futures::future::BoxFuture;
 use hyper::service::Service;
 use tokio::macros::support::Poll;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use atomic_counter::{AtomicCounter, RelaxedCounter};
 
 #[derive(Clone)]
 pub struct UniqueIdGen {
-    counter: &'static AtomicUsize,
+    counter: Arc<RelaxedCounter>,
 }
 
 impl UniqueIdGen {
-    pub fn new(init: &'static AtomicUsize) -> UniqueIdGen {
+    pub fn new() -> UniqueIdGen {
         UniqueIdGen {
-            counter: init
+            counter: Arc::new(RelaxedCounter::new(0))
         }
     }
 }
@@ -32,7 +34,7 @@ impl Service<()> for UniqueIdGen {
 
     fn call(&mut self, req: ()) -> Self::Future {
         // mock unique id source
-        let id = self.counter.load(Ordering::Relaxed);
+        let id = self.counter.inc();
         core::future::ready(Ok(id))
     }
 }
