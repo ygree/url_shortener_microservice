@@ -91,14 +91,6 @@ struct Svc {
     hash_ids: HashIds,
 }
 
-impl Svc {
-    async fn get_value(&self, key: &str) -> Result<Option<String>, Infallible> {
-        let mut kvs = self.kv_service.clone();
-        kvs.call(kvservice::GetByKey(key.to_string())).await
-        // kvs.call(KVServiceRequest::Get("test".to_string())).await
-    }
-}
-
 impl Service<Request<Body>> for Svc {
     type Response = Response<Body>;
     type Error = hyper::Error;
@@ -113,40 +105,16 @@ impl Service<Request<Body>> for Svc {
         // TODO handle POST request { url = <.full url.> } and return ( url = <.short url.> }
         // TODO handle GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
 
-        // let (method, path) = (req.method().clone(), req.uri().path().clone());
-        let path = req.uri().path().to_string();
         let mut response = Response::new(Body::empty());
 
-        // match (req.method(), req.uri().path()) {
-        match (req.method(), path) {
+        match (req.method(), req.uri().path().to_string()) {
             (&Method::POST, url) => { // PUT? does put has a return value?
+                // TODO get url from the body
+
                 // TODO validate url?
 
                 // TODO look up in cache and return if exists
-
-                // look up KV by `url` and get a short url and send it back
-                // let mut kv_service = self.kv_service.clone();
-                // let found_short_url = kv_service.call(KVService::Get(url)).await;
-                // if let Some(fsu) = found_short_url {
-                // } else {
-                //     // generate a new unique id, if short url not found
-                //     let mut unique_id_gen = self.unique_id_gen.clone();
-                //     let unique_id = unique_id_gen.call(()).await.unwrap();
-                //     let mut hash_ids = self.hash_ids.clone();
-                //     let mut ids = Vec::new();
-                //     ids.push(unique_id);
-                //     let mut hash = hash_ids.encode(**ids);
-                //
-                //     // we could potentially replace long_url -> short_url pair, but it's not an issue
-                //     // old url is stored as short_url -> long_url and will still work,
-                //     // service will advertise a last written short_url, all short_urls will still work
-                //     kv_service.call(KVService::Put{ key: url, value: hash }).await;
-                //     kv_service.call(KVService::Put{ key: hash.clone(), value: url }).await;
-                //
-                // }
-                // TODO save in cache
-                // TODO return { orig_url, short_url }
-
+                // TODO save in cache in the end
 
                 let mut kv_service = self.kv_service.clone();
                 let mut unique_id_gen = self.unique_id_gen.clone();
@@ -199,15 +167,6 @@ impl Service<Request<Body>> for Svc {
                 })
             },
         }
-
-        // let svc = self.clone();
-
-        // return Box::pin(async move {
-        //     // let r = svc.get_value("test").await.unwrap();
-        //     // Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
-        //     Ok(response)
-        // });
-
     }
 }
 
