@@ -6,8 +6,6 @@ use hyper::{Body, Method, Request, Response, Server, StatusCode};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 use futures::future::BoxFuture;
 use hash_ids::HashIds;

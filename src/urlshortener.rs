@@ -23,8 +23,8 @@ impl Service<Request<Body>> for UrlShortener {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        // TODO handle POST request { url = <.full url.> } and return ( url = <.short url.> }
-        // TODO handle GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
+        // handles POST request { url = <.full url.> } and return ( url = <.short url.> }
+        // handles GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
 
         let mut response = Response::new(Body::empty());
 
