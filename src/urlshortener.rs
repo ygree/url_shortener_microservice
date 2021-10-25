@@ -39,12 +39,10 @@ impl Service<Request<Body>> for UrlShortener {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        // handles POST request { url = <.full url.> } and return ( url = <.short url.> }
-        // handles GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
-
         let mut response = Response::new(Body::empty());
 
-        match (req.method(), req.uri().path().to_string()) {
+        let url = req.uri().path().to_string();
+        match (req.method(), url) {
             (&Method::POST, url) => {
                 // TODO add caching if needed
                 //  look up in cache and return if exists
@@ -64,7 +62,9 @@ impl Service<Request<Body>> for UrlShortener {
                     } else {
                         // generate a new unique id, if short url not found
                         let UniqueId(unique_id) = unique_id_gen.call(GetUniqueId).await.unwrap();
-                        let new_short_url = hash_ids.encode(&vec![unique_id as u64]);
+                        let mut new_short_url = String::new();
+                        new_short_url.push_str("/");
+                        new_short_url.push_str(&hash_ids.encode(&vec![unique_id as u64]));
                         debug!("Generate new short_url: {} for {}", new_short_url, url);
 
                         // store new pairs long_url -> short_url and short_url -> long_url
@@ -85,7 +85,7 @@ impl Service<Request<Body>> for UrlShortener {
 
                 Box::pin(async move {
                     // look up short/original url by `url`
-                    let found_short_or_orig_url = kv_service.call(GetByKey(url.clone())).await.unwrap();
+                    let found_short_or_orig_url = kv_service.call(GetByKey(url.to_string())).await.unwrap();
                     debug!("Look up from the KV-store: {} by {}", found_short_or_orig_url.clone().unwrap_or("Not found!".to_string()), url.clone());
                     if let Some(short_or_orig_url) = found_short_or_orig_url {
                         Ok(Response::builder().body(Body::from(short_or_orig_url)).unwrap())
