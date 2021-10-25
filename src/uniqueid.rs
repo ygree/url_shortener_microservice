@@ -1,12 +1,9 @@
 use std::convert::Infallible;
-use std::future::{Future, Ready};
-use std::pin::Pin;
+use std::future::Ready;
 use std::sync::Arc;
 use std::task::Context;
-use futures::future::BoxFuture;
 use hyper::service::Service;
 use tokio::macros::support::Poll;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use atomic_counter::{AtomicCounter, RelaxedCounter};
 
 #[derive(Clone)]
@@ -32,7 +29,7 @@ impl Service<GetUniqueId> for UniqueIdGen {
     // type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
     type Future = Ready<Result<Self::Response, Infallible>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 

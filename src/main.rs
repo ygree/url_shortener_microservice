@@ -1,14 +1,10 @@
-use std::collections::hash_map::DefaultHasher;
-use std::convert::Infallible;
 use hyper::service::Service;
-use hyper::{Body, Method, Request, Response, Server, StatusCode};
+use hyper::Server;
 
 use std::future::Future;
-use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use futures::future::BoxFuture;
-use log::{debug, error, log_enabled, info, Level};
+use log::info;
 
 mod kvservice;
 mod uniqueid;

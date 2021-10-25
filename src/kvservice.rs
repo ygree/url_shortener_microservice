@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
-use std::future::{Future, Ready};
-use std::pin::Pin;
+use std::future::Ready;
 use std::sync::{Arc, Mutex};
 use std::task::Context;
-use futures::future::BoxFuture;
 use hyper::service::Service;
 use tokio::macros::support::Poll;
 
@@ -38,7 +36,7 @@ impl Service<Put> for KVService {
     // type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
     type Future = Ready<Result<Self::Response, Infallible>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -60,13 +58,13 @@ impl Service<GetByKey> for KVService {
     // type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
     type Future = Ready<Result<Self::Response, Infallible>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
     fn call(&mut self, req: GetByKey) -> Self::Future {
         // mock call to a KV-store
-        let mut hm = self.hashmap.lock().unwrap();
+        let hm = self.hashmap.lock().unwrap();
         let GetByKey(key) = req;
         let value = hm.get(&key).map(|x| x.to_string());
         core::future::ready(Ok(value))
