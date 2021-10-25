@@ -22,8 +22,12 @@ impl UniqueIdGen {
     }
 }
 
-impl Service<()> for UniqueIdGen {
-    type Response = usize;
+pub struct GetUniqueId;
+
+pub struct UniqueId(pub usize);
+
+impl Service<GetUniqueId> for UniqueIdGen {
+    type Response = UniqueId;
     type Error = Infallible;
     // type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
     type Future = Ready<Result<Self::Response, Infallible>>;
@@ -32,9 +36,9 @@ impl Service<()> for UniqueIdGen {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: ()) -> Self::Future {
+    fn call(&mut self, _: GetUniqueId) -> Self::Future {
         // mock unique id source
         let id = self.counter.inc();
-        core::future::ready(Ok(id))
+        core::future::ready(Ok(UniqueId(id)))
     }
 }

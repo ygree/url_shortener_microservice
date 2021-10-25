@@ -18,7 +18,7 @@ mod uniqueid;
 
 use kvservice::KVService;
 use crate::kvservice::{GetByKey, Put};
-use crate::uniqueid::UniqueIdGen;
+use crate::uniqueid::{GetUniqueId, UniqueId, UniqueIdGen};
 
 //TODO add logging
 //TODO rename project
@@ -113,6 +113,7 @@ impl Service<Request<Body>> for Svc {
 
                 // TODO validate url?
 
+                // TODO add caching if needed
                 // TODO look up in cache and return if exists
                 // TODO save in cache in the end
 
@@ -127,7 +128,7 @@ impl Service<Request<Body>> for Svc {
                         Ok(Response::builder().body(Body::from(found_url)).unwrap())
                     } else {
                         // generate a new unique id, if short url not found
-                        let unique_id = unique_id_gen.call(()).await.unwrap();
+                        let UniqueId(unique_id) = unique_id_gen.call(GetUniqueId).await.unwrap();
                         let new_short_url = hash_ids.encode(&vec![unique_id as u64]);
                         println!("Generate new short_url: {} for {}", new_short_url, url);
 
