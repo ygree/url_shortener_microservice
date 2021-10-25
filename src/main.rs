@@ -13,7 +13,6 @@ use futures::future::BoxFuture;
 use hash_ids::HashIds;
 
 mod kvservice;
-mod inmem_kvstore;
 mod uniqueid;
 
 use kvservice::KVService;
@@ -28,6 +27,7 @@ use crate::uniqueid::{GetUniqueId, UniqueId, UniqueIdGen};
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = ([127, 0, 0, 1], 3000).into();
+
     let kv_service = KVService::new();
     let mut unique_id_gen = UniqueIdGen::new();
 
@@ -94,8 +94,7 @@ struct Svc {
 impl Service<Request<Body>> for Svc {
     type Response = Response<Body>;
     type Error = hyper::Error;
-    // type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>; // TODO how to avoid allocation here?
-    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>; // TODO how to avoid allocation here?
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))

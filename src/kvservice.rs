@@ -8,17 +8,15 @@ use futures::future::BoxFuture;
 use hyper::service::Service;
 use tokio::macros::support::Poll;
 
-use crate::inmem_kvstore::InMemKVStore;
-
 #[derive(Clone)]
 pub struct KVService {
-    kv_store: InMemKVStore,
+    hashmap: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl KVService {
     pub fn new() -> KVService {
         KVService {
-            kv_store: InMemKVStore::new()
+            hashmap: Arc::new(Mutex::new(HashMap::new()))
         }
     }
 }
@@ -47,8 +45,8 @@ impl Service<Put> for KVService {
     fn call(&mut self, req: Put) -> Self::Future {
         let Put { key, value } = req;
         // mock call to a KV-store
-        self.kv_store.put(key, value);
-        // Box::pin(async { Ok(()) })
+        let mut hm = self.hashmap.lock().unwrap();
+        let _ = hm.insert(key, value);
         core::future::ready(Ok(()))
     }
 }
@@ -68,7 +66,9 @@ impl Service<GetByKey> for KVService {
 
     fn call(&mut self, req: GetByKey) -> Self::Future {
         // mock call to a KV-store
-        let value = self.kv_store.get(req.0);
+        let mut hm = self.hashmap.lock().unwrap();
+        let GetByKey(key) = req;
+        let value = hm.get(&key).map(|x| x.to_string());
         core::future::ready(Ok(value))
     }
 }
