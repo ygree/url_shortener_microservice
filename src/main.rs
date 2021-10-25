@@ -4,7 +4,7 @@ use hyper::Server;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use log::info;
+use log::{info, error};
 
 mod kvservice;
 mod uniqueid;
@@ -15,7 +15,7 @@ use urlshortener::UrlShortener;
 use uniqueid::UniqueIdGen;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() {
     env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();
@@ -35,8 +35,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     info!("Listening on http://{}", addr);
 
-    server.await?;
-    Ok(())
+    let graceful = server.with_graceful_shutdown(shutdown_signal());
+
+    if let Err(e) = graceful.await {
+        error!("server error: {}", e);
+    }
+}
+
+async fn shutdown_signal() {
+    // Wait for the CTRL+C signal
+    tokio::signal::ctrl_c()
+        .await
+        .expect("failed to install CTRL+C signal handler");
 }
 
 struct MakeSvc {
