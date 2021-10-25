@@ -13,6 +13,20 @@ pub struct UrlShortener {
     pub hash_ids: HashIds,
 }
 
+impl UrlShortener {
+    pub fn new(kv_service: KVService, unique_id_gen: UniqueIdGen) -> UrlShortener {
+        let hash_ids = HashIds::builder()
+            .with_salt("Arbitrary string")
+            .finish();
+
+        UrlShortener {
+            kv_service,
+            unique_id_gen,
+            hash_ids,
+        }
+    }
+}
+
 impl Service<Request<Body>> for UrlShortener {
     type Response = Response<Body>;
     type Error = hyper::Error;

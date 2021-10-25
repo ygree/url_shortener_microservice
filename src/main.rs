@@ -8,7 +8,6 @@ use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use futures::future::BoxFuture;
-use hash_ids::HashIds;
 
 mod kvservice;
 mod uniqueid;
@@ -28,7 +27,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
+    // KV-store mock impl
     let kv_service = KVService::new();
+    // unique id gen mock impl
     let mut unique_id_gen = UniqueIdGen::new();
 
     // TODO compose service out of layers:
@@ -76,10 +77,7 @@ impl<T> Service<T> for MakeSvc {
     fn call(&mut self, _: T) -> Self::Future {
         let kv_service = self.kv_service.clone();
         let unique_id_gen = self.unique_id_gen.clone();
-        let hash_ids = HashIds::builder()
-            .with_salt("Arbitrary string")
-            .finish();
-        let fut = async move { Ok(UrlShortener { kv_service, unique_id_gen, hash_ids }) };
+        let fut = async move { Ok(UrlShortener::new(kv_service, unique_id_gen)) };
         Box::pin(fut)
     }
 }
