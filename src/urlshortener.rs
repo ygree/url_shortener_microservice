@@ -1,0 +1,93 @@
+use std::task::{Context, Poll};
+use futures::future::BoxFuture;
+use hash_ids::HashIds;
+use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::service::Service;
+use crate::kvservice::{GetByKey, KVService, Put};
+use crate::uniqueid::{GetUniqueId, UniqueId, UniqueIdGen};
+
+#[derive(Clone)]
+pub struct UrlShortener {
+    pub kv_service: KVService,
+    pub unique_id_gen: UniqueIdGen,
+    pub hash_ids: HashIds,
+}
+
+impl Service<Request<Body>> for UrlShortener {
+    type Response = Response<Body>;
+    type Error = hyper::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Request<Body>) -> Self::Future {
+        // TODO handle POST request { url = <.full url.> } and return ( url = <.short url.> }
+        // TODO handle GET request { url = <.full or short url.> } and return { url = <.short or full url.> }
+
+        let mut response = Response::new(Body::empty());
+
+        match (req.method(), req.uri().path().to_string()) {
+            (&Method::POST, url) => { // PUT? does put has a return value?
+                // TODO get url from the body
+
+                // TODO validate url?
+
+                // TODO add caching if needed
+                // TODO look up in cache and return if exists
+                // TODO save in cache in the end
+
+                let mut kv_service = self.kv_service.clone();
+                let mut unique_id_gen = self.unique_id_gen.clone();
+                let mut hash_ids = self.hash_ids.clone();
+
+                Box::pin(async move {
+                    let found_short_or_orig_url = kv_service.call(GetByKey(url.clone())).await.unwrap();
+                    if let Some(found_url) = found_short_or_orig_url.clone() {
+                        println!("Look up from the KV-store: {} by {}", found_url, url);
+                        Ok(Response::builder().body(Body::from(found_url)).unwrap())
+                    } else {
+                        // generate a new unique id, if short url not found
+                        let UniqueId(unique_id) = unique_id_gen.call(GetUniqueId).await.unwrap();
+                        let new_short_url = hash_ids.encode(&vec![unique_id as u64]);
+                        println!("Generate new short_url: {} for {}", new_short_url, url);
+
+                        // store new pairs long_url -> short_url and short_url -> long_url
+                        // NOTE: we could potentially replace long_url -> short_url pair, but it's not an issue
+                        // old url is stored as short_url -> long_url and will still work,
+                        // service will advertise a last written short_url, all short_urls will still work
+                        kv_service.call(Put::new(new_short_url.clone(), url.clone())).await;
+                        println!("Store pair {} {} into the KV-store", new_short_url, url);
+                        kv_service.call(Put::new(url.clone(), new_short_url.clone())).await;
+                        println!("Store pair {} {} into the KV-store", url, new_short_url);
+
+                        Ok(Response::builder().body(Body::from(new_short_url)).unwrap())
+                    }
+                })
+            },
+            (&Method::GET, url) => {
+                let mut kv_service = self.kv_service.clone();
+
+                Box::pin(async move {
+                    // look up short/original url by `url`
+                    let found_short_or_orig_url = kv_service.call(GetByKey(url.clone())).await.unwrap();
+                    println!("Look up from the KV-store {} by {}", found_short_or_orig_url.clone().unwrap_or("Not found!".to_string()), url.clone());
+                    if let Some(short_or_orig_url) = found_short_or_orig_url {
+                        Ok(Response::builder().body(Body::from(short_or_orig_url)).unwrap())
+                    } else {
+                        *response.status_mut() = StatusCode::NOT_FOUND;
+                        Ok(response)
+                    }
+                })
+            },
+            _ => {
+                *response.status_mut() = StatusCode::NOT_FOUND;
+                Box::pin(async move {
+                    Ok(response)
+                })
+            },
+        }
+    }
+}
+
