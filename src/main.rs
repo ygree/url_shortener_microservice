@@ -8,21 +8,21 @@ use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use futures::future::BoxFuture;
+use log::{debug, error, log_enabled, info, Level};
 
 mod kvservice;
 mod uniqueid;
 mod urlshortener;
 
 use kvservice::KVService;
-use crate::kvservice::{GetByKey, Put};
-use crate::uniqueid::{GetUniqueId, UniqueId, UniqueIdGen};
-use crate::urlshortener::UrlShortener;
+use urlshortener::UrlShortener;
+use uniqueid::UniqueIdGen;
 
-//TODO add logging
 //TODO publish to github
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    env_logger::init();
 
     let addr = ([127, 0, 0, 1], 3000).into();
 
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
         );
 
-    println!("Listening on http://{}", addr);
+    info!("Listening on http://{}", addr);
 
     server.await?;
     Ok(())

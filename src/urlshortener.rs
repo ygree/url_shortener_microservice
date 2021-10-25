@@ -3,6 +3,8 @@ use futures::future::BoxFuture;
 use hash_ids::HashIds;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use hyper::service::Service;
+use log::{debug, error, log_enabled, info, Level};
+
 use crate::kvservice::{GetByKey, KVService, Put};
 use crate::uniqueid::{GetUniqueId, UniqueId, UniqueIdGen};
 
@@ -56,22 +58,22 @@ impl Service<Request<Body>> for UrlShortener {
                 Box::pin(async move {
                     let found_short_or_orig_url = kv_service.call(GetByKey(url.clone())).await.unwrap();
                     if let Some(found_url) = found_short_or_orig_url.clone() {
-                        println!("Look up from the KV-store: {} by {}", found_url, url);
+                        debug!("Look up from the KV-store: {} by {}", found_url, url);
                         Ok(Response::builder().body(Body::from(found_url)).unwrap())
                     } else {
                         // generate a new unique id, if short url not found
                         let UniqueId(unique_id) = unique_id_gen.call(GetUniqueId).await.unwrap();
                         let new_short_url = hash_ids.encode(&vec![unique_id as u64]);
-                        println!("Generate new short_url: {} for {}", new_short_url, url);
+                        debug!("Generate new short_url: {} for {}", new_short_url, url);
 
                         // store new pairs long_url -> short_url and short_url -> long_url
                         // NOTE: we could potentially replace long_url -> short_url pair, but it's not an issue
                         // old url is stored as short_url -> long_url and will still work,
                         // service will advertise a last written short_url, all short_urls will still work
                         kv_service.call(Put::new(new_short_url.clone(), url.clone())).await;
-                        println!("Store pair {} {} into the KV-store", new_short_url, url);
+                        debug!("Store pair {} {} into the KV-store", new_short_url, url);
                         kv_service.call(Put::new(url.clone(), new_short_url.clone())).await;
-                        println!("Store pair {} {} into the KV-store", url, new_short_url);
+                        debug!("Store pair {} {} into the KV-store", url, new_short_url);
 
                         Ok(Response::builder().body(Body::from(new_short_url)).unwrap())
                     }
@@ -83,7 +85,7 @@ impl Service<Request<Body>> for UrlShortener {
                 Box::pin(async move {
                     // look up short/original url by `url`
                     let found_short_or_orig_url = kv_service.call(GetByKey(url.clone())).await.unwrap();
-                    println!("Look up from the KV-store {} by {}", found_short_or_orig_url.clone().unwrap_or("Not found!".to_string()), url.clone());
+                    debug!("Look up from the KV-store {} by {}", found_short_or_orig_url.clone().unwrap_or("Not found!".to_string()), url.clone());
                     if let Some(short_or_orig_url) = found_short_or_orig_url {
                         Ok(Response::builder().body(Body::from(short_or_orig_url)).unwrap())
                     } else {
