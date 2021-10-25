@@ -28,6 +28,12 @@ pub struct Put {
     value: String,
 }
 
+impl Put {
+    pub fn new(key: String, value: String) -> Put {
+        Put { key, value }
+    }
+}
+
 impl Service<Put> for KVService {
     type Response = ();
     type Error = Infallible;

@@ -17,9 +17,10 @@ mod inmem_kvstore;
 mod uniqueid;
 
 use kvservice::KVService;
-use crate::kvservice::{GetByKey};
+use crate::kvservice::{GetByKey, Put};
 use crate::uniqueid::UniqueIdGen;
 
+//TODO add logging
 //TODO rename project
 //TODO publish to github
 
@@ -151,24 +152,27 @@ impl Service<Request<Body>> for Svc {
                 let mut unique_id_gen = self.unique_id_gen.clone();
                 let mut hash_ids = self.hash_ids.clone();
 
-                *response.body_mut() = Body::from(url.clone());
+                // *response.body_mut() = Body::from(url.clone());
                 Box::pin(async move {
-                    let found_short_or_orig_url = kv_service.call(GetByKey(url)).await.unwrap();
-                    if let Some(found_url) = found_short_or_orig_url {
+                    let found_short_or_orig_url = kv_service.call(GetByKey(url.clone())).await.unwrap();
+                    if let Some(found_url) = found_short_or_orig_url.clone() {
+                        println!("Taken from the KV-store: {}", found_url);
                         Ok(Response::builder().body(Body::from(found_url)).unwrap())
                     } else {
                         // generate a new unique id, if short url not found
                         let unique_id = unique_id_gen.call(()).await.unwrap();
-                        println!("{}", unique_id);
+                        println!("Generate new short_url: {}", unique_id);
                         let new_short_url = hash_ids.encode(&vec![unique_id as u64]);
 
-                        //TODO save a new hash pairs
+                        // store new pairs long_url -> short_url and short_url -> long_url
+                        // NOTE: we could potentially replace long_url -> short_url pair, but it's not an issue
+                        // old url is stored as short_url -> long_url and will still work,
+                        // service will advertise a last written short_url, all short_urls will still work
+                        kv_service.call(Put::new(new_short_url.clone(), url.clone())).await;
+                        kv_service.call(Put::new(url.clone(), new_short_url.clone())).await;
 
                         Ok(Response::builder().body(Body::from(new_short_url)).unwrap())
                     }
-
-                    // let r = svc.get_value("test").await.unwrap();
-                    // Ok(Response::builder().body(Body::from("Hey".to_string())).unwrap())
                 })
             },
             (&Method::GET, url) => {
